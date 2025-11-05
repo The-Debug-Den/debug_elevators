@@ -1,11 +1,10 @@
 Config = {}
 
 Config.checkForUpdates = true -- Check for Updates?
-
--- NEW: pick "qb", "esx", "standalone", or "auto" (detects qb-core/es_extended else standalone)
+-- pick "qb", "esx", "standalone", or "auto" (detects qb-core/es_extended else standalone)
 Config.Framework = "auto"
 
--- NEW: debug prints in F8
+-- Adds prints to the console [F8]
 Config.Debug = true
 
 -- Optional: global on-duty rule for QB (ignored on ESX; Standalone ignores job locks)

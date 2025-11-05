@@ -103,7 +103,7 @@ CreateThread(function()
     target = pickTarget()
     if target then
         if Config and Config.Debug then
-            dprint(("[debug_elevators] using target: %s"):format(target))
+            dprint(("using target: %s"):format(target))
         end
     else
         print("^1[debug_elevators]^0 No target resource found (qb-target / ox_target / qtarget). Zones will not be created.")
@@ -269,7 +269,9 @@ CreateThread(function()
     -- Wait for framework + target to resolve
     while framework == nil do Wait(100) end
     if not target then
-        print("^1[debug_elevators]^0 No target resource found (qb-target / ox_target / qtarget). Zones will not be created.")
+        if Config and Config.Debug then
+            print("^1[debug_elevators]^0 No target resource found (qb-target / ox_target / qtarget). Zones will not be created.")
+        end
         return
     end
 
@@ -277,9 +279,11 @@ CreateThread(function()
     for elevKey, floors in pairs(Config.Elevators) do
         for idx, floorCfg in pairs(floors) do
             createElevatorZone(elevKey, idx, floorCfg)
-           count = count + 1
+            count = count + 1
         end
     end
+
     if Config and Config.Debug then
         dprint(("zones registered via %s: %d"):format(target, count))
+    end
 end)

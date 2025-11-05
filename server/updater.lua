@@ -1,16 +1,16 @@
 local curVersion = GetResourceMetadata(GetCurrentResourceName(), "version")
-local resourceName = "nova_elevators"
+local resourceName = "debug_elevators"
 
 if Config.checkForUpdates then
     CreateThread(function()
-        if GetCurrentResourceName() ~= "nova_elevators" then
-            resourceName = "nova_elevators (" .. GetCurrentResourceName() .. ")"
+        if GetCurrentResourceName() ~= "debug_elevators" then
+            resourceName = "debug_elevators (" .. GetCurrentResourceName() .. ")"
         end
     end)
 
     CreateThread(function()
         while true do
-            PerformHttpRequest("https://api.github.com/repos/wasabirobby/nova_elevators/releases/latest", CheckVersion, "GET")
+            PerformHttpRequest("https://api.github.com/repos/The-Debug-Den/debug_elevators/releases/latest", CheckVersion, "GET")
             Wait(3600000)
         end
     end)
@@ -37,7 +37,7 @@ if Config.checkForUpdates then
     GetRepoInformations = function()
         local repoVersion, repoURL, repoBody = nil, nil, nil
 
-        PerformHttpRequest("https://api.github.com/repos/wasabirobby/nova_elevators/releases/latest", function(err, response, headers)
+        PerformHttpRequest("https://api.github.com/repos/The-Debug-Den/debug_elevators/releases/latest", function(err, response, headers)
             if err == 200 then
                 local data = json.decode(response)
 
@@ -46,7 +46,7 @@ if Config.checkForUpdates then
                 repoBody = data.body
             else
                 repoVersion = curVersion
-                repoURL = "https://github.com/wasabirobby/nova_elevators"
+                repoURL = "https://github.com/The-Debug-Den/debug_elevators"
             end
         end, "GET")
 

@@ -2,7 +2,6 @@ ESX, QBCore = nil, nil
 local framework, PlayerData, target
 local printedStandaloneNotice = false
 
--- Optional: respect Config.Framework if you added it ("qb"|"esx"|"standalone"|"auto")
 local function resolveFramework()
     if Config and Config.Framework and Config.Framework ~= "auto" then
         return Config.Framework
@@ -13,7 +12,7 @@ local function resolveFramework()
 end
 
 local function pickTarget()
-    -- Prefer qb-target, then ox_target, then qtarget
+   
     local order = { 'qb-target', 'ox_target', 'qtarget' }
     for _, res in ipairs(order) do
         if GetResourceState(res) == 'started' then return res end
@@ -189,47 +188,86 @@ AddEventHandler('debug_elevators:openMenu', function(data)
     end
 end)
 
--- ========= Zone creation =========
+-- ========= Zone creation (works with qb-target, qtarget, ox_target) =========
+local function createElevatorZone(elevKey, idx, floorCfg)
+    local t = floorCfg.target or {}
+    local width   = t.width or 2.0
+    local length  = t.length or 2.0
+    local heading = (t.heading ~= nil and t.heading) or floorCfg.heading or 0.0
+    local name    = ("%s:%s"):format(elevKey, idx)
+
+    if target == 'ox_target' then
+        -- ox_target expects a single table with coords/size/rotation and options list.
+        -- size is a vec3(length, width, height). We’ll give it a 3.0m tall box.
+        if exports.ox_target and exports.ox_target.addBoxZone then
+            exports.ox_target:addBoxZone({
+                name      = name,
+                coords    = floorCfg.coords,
+                size      = vec3(length, width, t.height or 3.0), -- note length, width order
+                rotation  = heading,
+                debug     = false,
+                drawSprite = false,
+                options   = {
+                    {
+                        name  = name .. ':use',
+                        icon  = 'fa-solid fa-hand',
+                        label = 'Interact',
+                        onSelect = function()
+                            TriggerEvent('debug_elevator:openMenu', { elevator = elevKey, floor = idx })
+                        end
+                    }
+                }
+            })
+        else
+            print(("^1[debug_elevators]^0 ox_target is started but export addBoxZone missing"))
+        end
+
+    else
+        -- qb-target / qtarget share AddBoxZone(name, coords, length, width, zoneOpts, targetOpts)
+        if exports[target] and exports[target].AddBoxZone then
+            exports[target]:AddBoxZone(
+                name,
+                floorCfg.coords,
+                length,           -- qb-target/qtarget want (length, width)
+                width,
+                {
+                    name = name,
+                    heading = heading,
+                    debugPoly = false,
+                    minZ = floorCfg.coords.z - 1.5,
+                    maxZ = floorCfg.coords.z + 1.5,
+                },
+                {
+                    options = {
+                        {
+                            event    = 'debug_elevator:openMenu',
+                            icon     = 'fa-solid fa-hand',
+                            label    = 'Interact',
+                            elevator = elevKey,
+                            floor    = idx,
+                        },
+                    },
+                    distance = 1.5
+                }
+            )
+        else
+            print(("^1[debug_elevators]^0 %s does not expose AddBoxZone"):format(tostring(target)))
+        end
+    end
+end
+
 CreateThread(function()
-    -- Wait for framework + target
+    -- Wait for framework + target to resolve
     while framework == nil do Wait(100) end
-    if not target then return end
+    if not target then
+        print("^1[debug_elevators]^0 No target resource found (qb-target / ox_target / qtarget). Zones will not be created.")
+        return
+    end
 
     for elevKey, floors in pairs(Config.Elevators) do
         for idx, floorCfg in pairs(floors) do
-            local t = floorCfg.target or {}
-            local width  = t.width or 2.0
-            local length = t.length or 2.0
-            local heading = t.heading or floorCfg.heading or 0.0
-
-            if exports[target] and exports[target].AddBoxZone then
-                exports[target]:AddBoxZone(
-                    (elevKey..':'..idx),
-                    floorCfg.coords,
-                    width, length,
-                    {
-                        name = (elevKey..':'..idx),
-                        heading = heading,
-                        debugPoly = false,
-                        minZ = floorCfg.coords.z - 1.5,
-                        maxZ = floorCfg.coords.z + 1.5
-                    },
-                    {
-                        options = {
-                            {
-                                event = 'debug_elevators:openMenu',
-                                icon  = 'fa-solid fa-hand',
-                                label = 'Interact',
-                                elevator = elevKey,
-                                floor = idx
-                            },
-                        },
-                        distance = 1.5
-                    }
-                )
-            else
-                print(("^1[debug_elevators]^0 %s does not expose AddBoxZone"):format(target))
-            end
+            createElevatorZone(elevKey, idx, floorCfg)
         end
     end
 end)
+

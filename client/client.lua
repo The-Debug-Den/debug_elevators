@@ -2,6 +2,12 @@ ESX, QBCore = nil, nil
 local framework, PlayerData, target
 local printedStandaloneNotice = false
 
+local function dprint(msg)
+    if Config and Config.Debug then
+        print(("[debug_elevators] %s"):format(msg))
+    end
+end
+
 local function resolveFramework()
     if Config and Config.Framework and Config.Framework ~= "auto" then
         return Config.Framework
@@ -31,14 +37,9 @@ local function canUseFloor(floorCfg)
     -- no groups means open to all
     if not floorCfg.groups or #floorCfg.groups == 0 then return true end
 
-    -- Standalone: ignore groups, but print once to F8
-    if framework == 'standalone' then
-        if not printedStandaloneNotice then
-            print("^3[debug_elevators]^0 Job groups are ^3ignored^0 because framework is set to ^3Standalone^0.")
-            printedStandaloneNotice = true
-        end
-        return true
-    end
+  if framework == 'standalone' then
+    return true
+end
 
     -- QB/ESX: enforce groups
     local job = getJobName()
@@ -100,10 +101,15 @@ end)
 CreateThread(function()
     while not framework do Wait(100) end
     target = pickTarget()
-    if not target then
+    if target then
+        if Config and Config.Debug then
+            dprint(("[debug_elevators] using target: %s"):format(target))
+        end
+    else
         print("^1[debug_elevators]^0 No target resource found (qb-target / ox_target / qtarget). Zones will not be created.")
     end
 end)
+
 
 -- ========= Teleport =========
 AddEventHandler('debug_elevators:goToFloor', function(data)
@@ -137,8 +143,11 @@ AddEventHandler('debug_elevators:noAccess', function()
             type = 'error'
         })
     else
-        -- fallback if ox_lib missing
-        print("[Elevator Notice] No Access: You do not have access to this floor.")
+        if TriggerEvent then
+    TriggerEvent('chat:addMessage', { args = { '^1Elevator', 'No Access: You do not have access to this floor.' } })
+else
+    dprint("No Access (lib missing and chat:addMessage unavailable)")
+end
     end
 end)
 
@@ -188,48 +197,48 @@ AddEventHandler('debug_elevators:openMenu', function(data)
     end
 end)
 
--- ========= Zone creation (works with qb-target, qtarget, ox_target) =========
+-- ========= Zone creation (qb-target, qtarget, ox_target) =========
 local function createElevatorZone(elevKey, idx, floorCfg)
-    local t = floorCfg.target or {}
+    local t       = floorCfg.target or {}
     local width   = t.width or 2.0
     local length  = t.length or 2.0
+    local height  = t.height or 3.0
     local heading = (t.heading ~= nil and t.heading) or floorCfg.heading or 0.0
     local name    = ("%s:%s"):format(elevKey, idx)
 
     if target == 'ox_target' then
-        -- ox_target expects a single table with coords/size/rotation and options list.
-        -- size is a vec3(length, width, height). We’ll give it a 3.0m tall box.
+        -- ox_target: table API + onSelect callback
         if exports.ox_target and exports.ox_target.addBoxZone then
             exports.ox_target:addBoxZone({
-                name      = name,
-                coords    = floorCfg.coords,
-                size      = vec3(length, width, t.height or 3.0), -- note length, width order
-                rotation  = heading,
-                debug     = false,
+                name       = name,
+                coords     = floorCfg.coords,
+                size       = vec3(length, width, height),  -- length, width, height
+                rotation   = heading,
+                debug      = false,                        -- set true to visualize
                 drawSprite = false,
-                options   = {
+                options    = {
                     {
-                        name  = name .. ':use',
-                        icon  = 'fa-solid fa-hand',
-                        label = 'Interact',
+                        name     = name .. ':use',
+                        icon     = 'fa-solid fa-hand',
+                        label    = 'Interact',
                         onSelect = function()
-                            TriggerEvent('debug_elevator:openMenu', { elevator = elevKey, floor = idx })
+                            TriggerEvent('debug_elevators:openMenu', { elevator = elevKey, floor = idx })
                         end
                     }
                 }
             })
         else
-            print(("^1[debug_elevators]^0 ox_target is started but export addBoxZone missing"))
+            dprint("^1[debug_elevators]^0 ox_target is started but export addBoxZone is missing")
         end
 
     else
-        -- qb-target / qtarget share AddBoxZone(name, coords, length, width, zoneOpts, targetOpts)
+        -- qb-target / qtarget: function signature AddBoxZone(name, coords, length, width, zoneOpts, targetOpts)
         if exports[target] and exports[target].AddBoxZone then
             exports[target]:AddBoxZone(
                 name,
                 floorCfg.coords,
-                length,           -- qb-target/qtarget want (length, width)
-                width,
+                length,                   -- length first
+                width,                    -- then width
                 {
                     name = name,
                     heading = heading,
@@ -240,7 +249,7 @@ local function createElevatorZone(elevKey, idx, floorCfg)
                 {
                     options = {
                         {
-                            event    = 'debug_elevator:openMenu',
+                            event    = 'debug_elevators:openMenu',
                             icon     = 'fa-solid fa-hand',
                             label    = 'Interact',
                             elevator = elevKey,
@@ -264,10 +273,13 @@ CreateThread(function()
         return
     end
 
+    local count = 0
     for elevKey, floors in pairs(Config.Elevators) do
         for idx, floorCfg in pairs(floors) do
             createElevatorZone(elevKey, idx, floorCfg)
+           count = count + 1
         end
     end
+    if Config and Config.Debug then
+        dprint(("zones registered via %s: %d"):format(target, count))
 end)
-
